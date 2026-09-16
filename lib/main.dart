@@ -1,161 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'models/product.dart';
+import 'models/cart_item.dart';
+import 'providers/cart_provider.dart';
+import 'providers/product_provider.dart';
+
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => CartProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => CartProvider()..loadCart(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => ProductProvider(),
+        ),
+      ],
       child: const SmartCartApp(),
     ),
   );
-}
-
-// ============================================================
-// MODEL PRODUCT
-// ============================================================
-
-class Product {
-  final int id;
-  final String name;
-  final int price;
-  final String image;
-
-  Product({
-    required this.id,
-    required this.name,
-    required this.price,
-    required this.image,
-  });
-}
-
-// ============================================================
-// MODEL CART ITEM
-// ============================================================
-
-class CartItem {
-  final Product product;
-  int quantity;
-
-  CartItem({
-    required this.product,
-    this.quantity = 1,
-  });
-
-  int get totalPrice {
-    return product.price * quantity;
-  }
-}
-
-// ============================================================
-// STATE MANAGEMENT - CART PROVIDER
-// ============================================================
-
-class CartProvider extends ChangeNotifier {
-  final List<CartItem> _items = [];
-
-  // Mengambil daftar item keranjang
-  List<CartItem> get items => _items;
-
-  // ==========================================================
-  // TAMBAH PRODUK KE KERANJANG
-  // ==========================================================
-
-  void addToCart(Product product) {
-    final index = _items.indexWhere(
-      (item) => item.product.id == product.id,
-    );
-
-    // Kalau produk sudah ada
-    if (index >= 0) {
-      _items[index].quantity++;
-    }
-
-    // Kalau produk belum ada
-    else {
-      _items.add(
-        CartItem(
-          product: product,
-          quantity: 1,
-        ),
-      );
-    }
-
-    notifyListeners();
-  }
-
-  // ==========================================================
-  // MENAMBAH JUMLAH
-  // ==========================================================
-
-  void increment(Product product) {
-    final index = _items.indexWhere(
-      (item) => item.product.id == product.id,
-    );
-
-    if (index >= 0) {
-      _items[index].quantity++;
-      notifyListeners();
-    }
-  }
-
-  // ==========================================================
-  // MENGURANGI JUMLAH
-  // ==========================================================
-  void decrement(Product product) {
-    final index = _items.indexWhere(
-      (item) => item.product.id == product.id,
-    );
-
-    if (index >= 0) {
-      if (_items[index].quantity > 1) {
-        _items[index].quantity--;
-      } else {
-        _items.removeAt(index);
-      }
-
-      notifyListeners();
-    }
-  }
-
-  // ==========================================================
-  // HAPUS PRODUK
-  // ==========================================================
-
-  void removeFromCart(Product product) {
-    _items.removeWhere(
-      (item) => item.product.id == product.id,
-    );
-
-    notifyListeners();
-  }
-
-  // ==========================================================
-  // JUMLAH TOTAL ITEM
-  // ==========================================================
-
-  int get totalItems {
-    int total = 0;
-
-    for (var item in _items) {
-      total += item.quantity;
-    }
-
-    return total;
-  }
-
-  // ==========================================================
-  // TOTAL HARGA
-  // ==========================================================
-
-  int get totalPrice {
-    int total = 0;
-
-    for (var item in _items) {
-      total += item.totalPrice;
-    }
-
-    return total;
-  }
 }
 
 // ============================================================
@@ -169,14 +33,11 @@ class SmartCartApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-
       title: 'Smart Cart',
-
       theme: ThemeData(
         primarySwatch: Colors.orange,
         fontFamily: 'Arial',
       ),
-
       home: const ProductPage(),
     );
   }
@@ -186,72 +47,141 @@ class SmartCartApp extends StatelessWidget {
 // PRODUCT PAGE
 // ============================================================
 
-class ProductPage extends StatelessWidget {
+class ProductPage extends StatefulWidget {
   const ProductPage({super.key});
 
+  @override
+  State<ProductPage> createState() => _ProductPageState();
+}
+
+class _ProductPageState extends State<ProductPage> {
+  bool _isLoading = true;
+  String? _error;
+
   // ==========================================================
-  // DAFTAR PRODUK
+  // PRODUK DEFAULT
   // ==========================================================
 
-  List<Product> get products {
-  return [
+  final List<Product> defaultProducts = [
     Product(
-      id: 1,
+      id: '1',
       name: 'Nasi Jawa',
       price: 15000,
+      description: 'Nasi Jawa',
       image: 'assets/nasgor goreng.png',
     ),
-
     Product(
-      id: 2,
+      id: '2',
       name: 'Ayam Bakar',
       price: 20000,
+      description: 'Ayam Bakar',
       image: 'assets/ayam bakar pedas.jpg.jpeg',
     ),
-
     Product(
-      id: 3,
+      id: '3',
       name: 'Cumi Gurih',
       price: 35000,
+      description: 'Cumi Gurih',
       image: 'assets/cumi bakar.jpg.jpeg',
     ),
-
     Product(
-      id: 4,
+      id: '4',
       name: 'Mie PB',
       price: 10000,
+      description: 'Mie PB',
       image: 'assets/mie pedas.jpg.jpeg',
     ),
-
     Product(
-      id: 5,
+      id: '5',
       name: 'Martabak Manis',
       price: 10000,
+      description: 'Martabak Manis',
       image: 'assets/martabak.jpg.jpeg',
     ),
-
     Product(
-      id: 6,
+      id: '6',
       name: 'Nasi Padang',
       price: 25000,
+      description: 'Nasi Padang',
       image: 'assets/nasi padang.jpg.jpeg',
     ),
   ];
-}
+
+  // ==========================================================
+  // INIT
+  // ==========================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prepareProducts();
+    });
+  }
+
+  // ==========================================================
+  // LOAD DATA + SEED PRODUK DEFAULT
+  // ==========================================================
+
+  Future<void> _prepareProducts() async {
+    try {
+      final provider = context.read<ProductProvider>();
+
+      await provider.seedDefaultProducts(defaultProducts);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+      });
+    }
+  }
 
   // ==========================================================
   // FORMAT RUPIAH
   // ==========================================================
 
-  String formatRupiah(int price) {
-    return 'Rp${price.toString().replaceAllMapped(
+  String formatRupiah(double price) {
+    return 'Rp${price.toInt().toString().replaceAllMapped(
           RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]}.',
         )}';
   }
 
   // ==========================================================
-  // BUILD
+  // FORM TAMBAH PRODUK
+  // ==========================================================
+
+  Future<void> _showAddProductForm() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return const AddProductDialog();
+      },
+    );
+
+    if (!mounted) return;
+
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Produk berhasil ditambahkan'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // ==========================================================
+  // BUILD PRODUCT PAGE
   // ==========================================================
 
   @override
@@ -278,7 +208,6 @@ class ProductPage extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             Text(
               'Temukan Makanan Favoritmu',
               style: TextStyle(
@@ -290,11 +219,11 @@ class ProductPage extends StatelessWidget {
           ],
         ),
 
-        // ====================================================
-        // ICON KERANJANG + BADGE
-        // ====================================================
-
         actions: [
+          // ==================================================
+          // ICON CART
+          // ==================================================
+
           Consumer<CartProvider>(
             builder: (context, cart, child) {
               return Stack(
@@ -304,35 +233,32 @@ class ProductPage extends StatelessWidget {
                       Icons.shopping_cart,
                       color: Colors.white,
                     ),
-
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              const CartPage(),
+                          builder: (context) => const CartPage(),
                         ),
                       );
                     },
                   ),
 
-                  // BADGE JUMLAH
+                  // =================================================
+                  // JUMLAH ITEM CART
+                  // =================================================
+
                   if (cart.totalItems > 0)
                     Positioned(
                       right: 5,
                       top: 5,
-
                       child: Container(
                         padding: const EdgeInsets.all(4),
-
                         decoration: const BoxDecoration(
                           color: Colors.red,
                           shape: BoxShape.circle,
                         ),
-
                         child: Text(
                           '${cart.totalItems}',
-
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -349,168 +275,537 @@ class ProductPage extends StatelessWidget {
       ),
 
       // ======================================================
-      // GRID PRODUK
+      // DAFTAR PRODUK
       // ======================================================
 
-      body: GridView.builder(
-        padding: const EdgeInsets.all(8),
+      body: Consumer<ProductProvider>(
+        builder: (context, productProvider, child) {
+          final products = productProvider.products;
 
-        gridDelegate:
-            const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+          // ==================================================
+          // LOADING
+          // ==================================================
 
-          crossAxisSpacing: 6,
+          if (_isLoading) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
 
-          mainAxisSpacing: 6,
+          // ==================================================
+          // ERROR
+          // ==================================================
 
-          childAspectRatio: 0.72,
-        ),
+          if (_error != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 50,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Terjadi error:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
 
-        itemCount: products.length,
+          // ==================================================
+          // DATA KOSONG
+          // ==================================================
 
-        itemBuilder: (context, index) {
-          final product = products[index];
+          if (products.isEmpty) {
+            return const Center(
+              child: Text(
+                'Belum ada produk',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 16,
+                ),
+              ),
+            );
+          }
 
-          return Card(
-            color: Colors.white,
+          // ==================================================
+          // GRID PRODUK
+          // ==================================================
 
-            elevation: 2,
+          return GridView.builder(
+            padding: const EdgeInsets.all(8),
 
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+              childAspectRatio: 0.72,
             ),
 
-            child: Padding(
-              padding: const EdgeInsets.all(6),
+            itemCount: products.length,
 
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+            itemBuilder: (context, index) {
+              final product = products[index];
 
-                children: [
-                  // =================================================
-                  // GAMBAR
-                  // =================================================
+              return Card(
+                color: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
 
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
 
-                      child: Image.asset(
-                        product.image,
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
 
-                        width: double.infinity,
+                    children: [
+                      // ==========================================
+                      // GAMBAR PRODUK
+                      // ==========================================
 
-                        fit: BoxFit.cover,
-
-                        errorBuilder:
-                            (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey.shade200,
-
-                            child: const Center(
-                              child: Icon(
-                                Icons.fastfood,
-                                size: 40,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // =================================================
-                  // NAMA
-                  // =================================================
-
-                  Text(
-                    product.name,
-
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-
-                  // =================================================
-                  // HARGA
-                  // =================================================
-
-                  Text(
-                    formatRupiah(product.price),
-
-                    style: const TextStyle(
-                      color: Color(0xFF8B5E22),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                    ),
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  // =================================================
-                  // TOMBOL TAMBAH
-                  // =================================================
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 30,
-
-                    child: ElevatedButton(
-                      onPressed: () {
-                        context
-                            .read<CartProvider>()
-                            .addToCart(product);
-
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '${product.name} ditambahkan',
-                            ),
-
-                            duration:
-                                const Duration(seconds: 1),
-                          ),
-                        );
-                      },
-
-                      style:
-                          ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color(0xFF996A2A),
-
-                        foregroundColor: Colors.white,
-
-                        shape:
-                            RoundedRectangleBorder(
+                      Expanded(
+                        child: ClipRRect(
                           borderRadius:
-                              BorderRadius.circular(20),
-                        ),
+                              BorderRadius.circular(6),
 
-                        padding: EdgeInsets.zero,
+                          child: product.image.isNotEmpty
+                              ? Image.asset(
+                                  product.image,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+
+                                  errorBuilder:
+                                      (context, error, stackTrace) {
+                                    return Container(
+                                      width: double.infinity,
+                                      color: Colors.grey.shade200,
+
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.fastfood,
+                                          size: 40,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  width: double.infinity,
+                                  color: Colors.grey.shade200,
+
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.fastfood,
+                                      size: 40,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                        ),
                       ),
 
-                      child: const Text(
-                        'Tambah',
+                      const SizedBox(height: 4),
 
-                        style: TextStyle(
+                      // ==========================================
+                      // NAMA
+                      // ==========================================
+
+                      Text(
+                        product.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+
+                      // ==========================================
+                      // HARGA
+                      // ==========================================
+
+                      Text(
+                        formatRupiah(product.price),
+
+                        style: const TextStyle(
+                          color: Color(0xFF8B5E22),
+                          fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
                       ),
-                    ),
+
+                      const SizedBox(height: 5),
+
+                      // ==========================================
+                      // TOMBOL TAMBAH KE CART
+                      // ==========================================
+
+                      SizedBox(
+                        width: double.infinity,
+                        height: 30,
+
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final cartItem = CartItem(
+                              id: product.id,
+                              productId: product.id,
+                              name: product.name,
+                              price: product.price,
+                              image: product.image,
+                              quantity: 1,
+                            );
+
+                            await context
+                                .read<CartProvider>()
+                                .addToCart(cartItem);
+
+                            if (!context.mounted) return;
+
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${product.name} ditambahkan',
+                                ),
+                                duration:
+                                    const Duration(seconds: 1),
+                              ),
+                            );
+                          },
+
+                          style:
+                              ElevatedButton.styleFrom(
+                            backgroundColor:
+                                const Color(0xFF996A2A),
+                            foregroundColor: Colors.white,
+
+                            shape:
+                                RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(20),
+                            ),
+
+                            padding: EdgeInsets.zero,
+                          ),
+
+                          child: const Text(
+                            'Tambah',
+                            style: TextStyle(
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),
+
+      // ======================================================
+      // FAB TAMBAH PRODUK
+      // ======================================================
+
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddProductForm,
+
+        backgroundColor: const Color(0xFF996A2A),
+        foregroundColor: Colors.white,
+
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DIALOG TAMBAH PRODUK
+// ============================================================
+//
+// Controller dibuat di dalam StatefulWidget dialog.
+// Jadi controller hanya hidup selama form masih terbuka.
+// Ini mencegah masalah controller ter-dispose ketika dialog
+// masih melakukan animasi/rebuild.
+//
+
+class AddProductDialog extends StatefulWidget {
+  const AddProductDialog({super.key});
+
+  @override
+  State<AddProductDialog> createState() =>
+      _AddProductDialogState();
+}
+
+class _AddProductDialogState
+    extends State<AddProductDialog> {
+  final TextEditingController nameController =
+      TextEditingController();
+
+  final TextEditingController priceController =
+      TextEditingController();
+
+  final TextEditingController descriptionController =
+      TextEditingController();
+
+  bool _isSaving = false;
+
+  // ==========================================================
+  // DISPOSE CONTROLLER
+  // ==========================================================
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    priceController.dispose();
+    descriptionController.dispose();
+
+    super.dispose();
+  }
+
+  // ==========================================================
+  // SIMPAN PRODUK
+  // ==========================================================
+
+  Future<void> _saveProduct() async {
+    final name = nameController.text.trim();
+
+    final price =
+        double.tryParse(priceController.text.trim());
+
+    final description =
+        descriptionController.text.trim();
+
+    // ========================================================
+    // VALIDASI
+    // ========================================================
+
+    if (name.isEmpty || price == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nama produk dan harga wajib diisi!',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    if (price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Harga harus lebih dari 0!',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    // ========================================================
+    // CEGAH DOUBLE TAP
+    // ========================================================
+
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final productProvider =
+          context.read<ProductProvider>();
+
+      // ======================================================
+      // ID PRODUK BARU
+      // ======================================================
+
+      final id =
+          DateTime.now().millisecondsSinceEpoch.toString();
+
+      // ======================================================
+      // BUAT PRODUK
+      // ======================================================
+
+      final newProduct = Product(
+        id: id,
+        name: name,
+        price: price,
+        description: description,
+        image: '',
+      );
+
+      // ======================================================
+      // SIMPAN KE SQLITE
+      // ======================================================
+
+      await productProvider.addProduct(newProduct);
+
+      if (!mounted) return;
+
+      // ======================================================
+      // TUTUP DIALOG
+      // ======================================================
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal menyimpan produk: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  // ==========================================================
+  // BUILD DIALOG
+  // ==========================================================
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text(
+        'Tambah Produk',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+
+          children: [
+            // ==================================================
+            // NAMA
+            // ==================================================
+
+            TextField(
+              controller: nameController,
+
+              textInputAction:
+                  TextInputAction.next,
+
+              decoration: const InputDecoration(
+                labelText: 'Nama Produk',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.fastfood),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ==================================================
+            // HARGA
+            // ==================================================
+
+            TextField(
+              controller: priceController,
+
+              keyboardType:
+                  const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+
+              decoration: const InputDecoration(
+                labelText: 'Harga',
+                hintText: 'Contoh: 15000',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.payments),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ==================================================
+            // DESKRIPSI
+            // ==================================================
+
+            TextField(
+              controller: descriptionController,
+
+              maxLines: 3,
+
+              decoration: const InputDecoration(
+                labelText: 'Deskripsi',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.description),
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // ========================================================
+      // BUTTON
+      // ========================================================
+
+      actions: [
+        TextButton(
+          onPressed: _isSaving
+              ? null
+              : () {
+                  Navigator.pop(context, false);
+                },
+
+          child: const Text('Batal'),
+        ),
+
+        ElevatedButton(
+          onPressed: _isSaving
+              ? null
+              : _saveProduct,
+
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                const Color(0xFF996A2A),
+            foregroundColor: Colors.white,
+          ),
+
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Simpan'),
+        ),
+      ],
     );
   }
 }
@@ -526,12 +821,16 @@ class CartPage extends StatelessWidget {
   // FORMAT RUPIAH
   // ==========================================================
 
-  String formatRupiah(int price) {
-    return 'Rp${price.toString().replaceAllMapped(
+  String formatRupiah(double price) {
+    return 'Rp${price.toInt().toString().replaceAllMapped(
           RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]}.',
         )}';
   }
+
+  // ==========================================================
+  // BUILD
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +843,6 @@ class CartPage extends StatelessWidget {
 
       appBar: AppBar(
         backgroundColor: const Color(0xFFEE9D12),
-
         elevation: 0,
 
         leading: IconButton(
@@ -569,14 +867,14 @@ class CartPage extends StatelessWidget {
       ),
 
       // ======================================================
-      // ISI KERANJANG
+      // ISI CART
       // ======================================================
 
       body: Consumer<CartProvider>(
         builder: (context, cart, child) {
-          // --------------------------------------------------
-          // KALAU KOSONG
-          // --------------------------------------------------
+          // ==================================================
+          // CART KOSONG
+          // ==================================================
 
           if (cart.items.isEmpty) {
             return const Center(
@@ -598,7 +896,7 @@ class CartPage extends StatelessWidget {
 
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
                     ),
                   ),
                 ],
@@ -606,235 +904,240 @@ class CartPage extends StatelessWidget {
             );
           }
 
-          // --------------------------------------------------
-          // KALAU ADA ISI
-          // --------------------------------------------------
+          // ==================================================
+          // LIST CART
+          // ==================================================
 
           return ListView.builder(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
 
             itemCount: cart.items.length,
 
             itemBuilder: (context, index) {
               final item = cart.items[index];
 
-              return Container(
+              return Card(
+                color: Colors.white,
+
                 margin:
                     const EdgeInsets.only(bottom: 10),
 
-                padding: const EdgeInsets.all(7),
+                elevation: 2,
 
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEE9D12),
-
+                shape:
+                    RoundedRectangleBorder(
                   borderRadius:
-                      BorderRadius.circular(8),
-
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          Colors.grey.withOpacity(0.35),
-
-                      blurRadius: 3,
-
-                      offset: const Offset(1, 2),
-                    ),
-                  ],
+                      BorderRadius.circular(10),
                 ),
 
-                child: Row(
-                  children: [
-                    // ========================================
-                    // GAMBAR
-                    // ========================================
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
 
-                    ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(7),
+                  child: Row(
+                    children: [
+                      // ========================================
+                      // GAMBAR
+                      // ========================================
 
-                      child: Image.asset(
-                        item.product.image,
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(8),
 
-                        width: 65,
+                        child: item.product.image.isNotEmpty
+                            ? Image.asset(
+                                item.product.image,
 
-                        height: 65,
+                                width: 70,
+                                height: 70,
 
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                                fit: BoxFit.cover,
 
-                    const SizedBox(width: 8),
+                                errorBuilder:
+                                    (context,
+                                        error,
+                                        stackTrace) {
+                                  return Container(
+                                    width: 70,
+                                    height: 70,
+                                    color:
+                                        Colors.grey.shade200,
 
-                    // ========================================
-                    // NAMA + HARGA + JUMLAH
-                    // ========================================
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-
-                        children: [
-                          Text(
-                            item.product.name,
-
-                            style:
-                                const TextStyle(
-                              color: Colors.white,
-
-                              fontWeight:
-                                  FontWeight.bold,
-
-                              fontSize: 13,
-                            ),
-                          ),
-
-                          Text(
-                            formatRupiah(
-                              item.product.price,
-                            ),
-
-                            style:
-                                const TextStyle(
-                              color: Colors.white,
-
-                              fontSize: 10,
-
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          // ==================================
-                          // TOMBOL - JUMLAH +
-                          // ==================================
-
-                          Row(
-                            children: [
-                              // MINUS
-                              GestureDetector(
-                                onTap: () {
-                                  context
-                                      .read<
-                                          CartProvider>()
-                                      .decrement(
-                                        item.product,
-                                      );
+                                    child: const Icon(
+                                      Icons.fastfood,
+                                      color: Colors.grey,
+                                    ),
+                                  );
                                 },
+                              )
+                            : Container(
+                                width: 70,
+                                height: 70,
+                                color:
+                                    Colors.grey.shade200,
 
                                 child: const Icon(
-                                  Icons
-                                      .remove_circle_outline,
-
-                                  color:
-                                      Colors.white,
-
-                                  size: 18,
+                                  Icons.fastfood,
+                                  color: Colors.grey,
                                 ),
                               ),
-
-                              const SizedBox(
-                                width: 12,
-                              ),
-
-                              // JUMLAH
-                              Text(
-                                '${item.quantity}',
-
-                                style:
-                                    const TextStyle(
-                                  color:
-                                      Colors.white,
-
-                                  fontSize: 12,
-                                ),
-                              ),
-
-                              const SizedBox(
-                                width: 12,
-                              ),
-
-                              // PLUS
-                              GestureDetector(
-                                onTap: () {
-                                  context
-                                      .read<
-                                          CartProvider>()
-                                      .increment(
-                                        item.product,
-                                      );
-                                },
-
-                                child: const Icon(
-                                  Icons
-                                      .add_circle_outline,
-
-                                  color:
-                                      Colors.white,
-
-                                  size: 18,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
                       ),
-                    ),
 
-                    // ========================================
-                    // DELETE + TOTAL
-                    // ========================================
+                      const SizedBox(width: 10),
 
-                    Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.end,
+                      // ========================================
+                      // INFO PRODUK
+                      // ========================================
 
-                      children: [
-                        IconButton(
-                          padding: EdgeInsets.zero,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
 
-                          constraints:
-                              const BoxConstraints(),
+                          children: [
+                            Text(
+                              item.product.name,
 
-                          icon: const Icon(
-                            Icons.delete,
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow.ellipsis,
 
-                            color: Colors.red,
+                              style: const TextStyle(
+                                fontWeight:
+                                    FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
 
-                            size: 18,
-                          ),
+                            const SizedBox(height: 3),
 
-                          onPressed: () {
-                            context
-                                .read<CartProvider>()
-                                .removeFromCart(
-                                  item.product,
-                                );
-                          },
+                            Text(
+                              formatRupiah(
+                                item.product.price,
+                              ),
+
+                              style:
+                                  const TextStyle(
+                                color:
+                                    Color(0xFF8B5E22),
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // ==================================
+                            // QUANTITY
+                            // ==================================
+
+                            Row(
+                              children: [
+                                // ==============================
+                                // MINUS
+                                // ==============================
+
+                                IconButton(
+                                  onPressed: () {
+                                    context
+                                        .read<CartProvider>()
+                                        .decrement(item.id);
+                                  },
+
+                                  icon: const Icon(
+                                    Icons
+                                        .remove_circle_outline,
+                                  ),
+
+                                  iconSize: 22,
+
+                                  padding:
+                                      EdgeInsets.zero,
+
+                                  constraints:
+                                      const BoxConstraints(),
+                                ),
+
+                                // ==============================
+                                // JUMLAH
+                                // ==============================
+
+                                Padding(
+                                  padding:
+                                      const EdgeInsets
+                                          .symmetric(
+                                    horizontal: 8,
+                                  ),
+
+                                  child: Text(
+                                    '${item.quantity}',
+
+                                    style:
+                                        const TextStyle(
+                                      fontWeight:
+                                          FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+
+                                // ==============================
+                                // PLUS
+                                // ==============================
+
+                                IconButton(
+                                  onPressed: () {
+                                    context
+                                        .read<CartProvider>()
+                                        .increment(item.id);
+                                  },
+
+                                  icon: const Icon(
+                                    Icons
+                                        .add_circle_outline,
+                                  ),
+
+                                  iconSize: 22,
+
+                                  padding:
+                                      EdgeInsets.zero,
+
+                                  constraints:
+                                      const BoxConstraints(),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
+                      ),
 
-                        const SizedBox(height: 20),
+                      // ========================================
+                      // HAPUS
+                      // ========================================
 
-                        Text(
-                          formatRupiah(
-                            item.totalPrice,
-                          ),
+                      IconButton(
+                        onPressed: () {
+                          context
+                              .read<CartProvider>()
+                              .removeFromCart(item.id);
 
-                          style:
-                              const TextStyle(
-                            color: Colors.white,
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(
+                            const SnackBar(
+                              content:
+                                  Text('Item dihapus dari keranjang'),
+                              duration:
+                                  Duration(seconds: 1),
+                            ),
+                          );
+                        },
 
-                            fontSize: 10,
-
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -843,122 +1146,120 @@ class CartPage extends StatelessWidget {
       ),
 
       // ======================================================
-      // TOTAL BELANJA + CHECKOUT
+      // TOTAL + CHECKOUT
       // ======================================================
 
       bottomNavigationBar:
           Consumer<CartProvider>(
         builder: (context, cart, child) {
+          if (cart.items.isEmpty) {
+            return const SizedBox.shrink();
+          }
+
           return Container(
-            padding:
-                const EdgeInsets.fromLTRB(
-              12,
-              12,
-              12,
-              16,
-            ),
+            padding: const EdgeInsets.all(15),
 
             decoration: const BoxDecoration(
-              color: Color(0xFFEE9D12),
+              color: Colors.white,
+
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 5,
+                  color: Colors.black12,
+                ),
+              ],
             ),
 
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
 
-              children: [
-                // ============================================
-                // TOTAL
-                // ============================================
+                children: [
+                  // ============================================
+                  // TOTAL
+                  // ============================================
 
-                Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
 
-                  children: [
-                    const Text(
-                      'Total Belanja',
+                    children: [
+                      const Text(
+                        'Total',
 
-                      style: TextStyle(
-                        color: Colors.white,
-
-                        fontSize: 16,
-
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-
-                    Text(
-                      formatRupiah(
-                        cart.totalPrice,
+                        style: TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
 
-                      style: const TextStyle(
-                        color: Colors.white,
+                      Text(
+                        formatRupiah(
+                          cart.totalPrice,
+                        ),
 
-                        fontSize: 20,
-
-                        fontWeight:
-                            FontWeight.bold,
+                        style:
+                            const TextStyle(
+                          color:
+                              Color(0xFF8B5E22),
+                          fontWeight:
+                              FontWeight.bold,
+                          fontSize: 18,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
 
-                const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
-                // ============================================
-                // CHECKOUT
-                // ============================================
+                  // ============================================
+                  // CHECKOUT
+                  // ============================================
 
-                SizedBox(
-                  width: double.infinity,
+                  SizedBox(
+                    width: double.infinity,
+                    height: 45,
 
-                  height: 40,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Menu checkout belum dibuat.',
+                            ),
+                          ),
+                        );
+                      },
 
-                  child: ElevatedButton(
-                    onPressed: cart.items.isEmpty
-                        ? null
-                        : () {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Checkout berhasil!',
-                                ),
-                              ),
-                            );
-                          },
+                      style:
+                          ElevatedButton.styleFrom(
+                        backgroundColor:
+                            const Color(0xFF996A2A),
 
-                    style:
-                        ElevatedButton.styleFrom(
-                      backgroundColor:
-                          const Color(0xFF996A2A),
+                        foregroundColor:
+                            Colors.white,
 
-                      foregroundColor:
-                          Colors.white,
-
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(7),
+                        shape:
+                            RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(10),
+                        ),
                       ),
-                    ),
 
-                    child: const Text(
-                      'Checkout',
+                      child: const Text(
+                        'Checkout',
 
-                      style: TextStyle(
-                        fontSize: 15,
-
-                        fontWeight:
-                            FontWeight.bold,
+                        style: TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
